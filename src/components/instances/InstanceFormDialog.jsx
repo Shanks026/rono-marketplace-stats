@@ -20,13 +20,17 @@ import {
 export function InstanceFormDialog({ open, onOpenChange, onSave, instance }) {
   const isEdit = !!instance
   const [name, setName] = useState(instance?.name ?? '')
+  const [domain, setDomain] = useState(instance?.domain ?? '')
   const [status, setStatus] = useState(instance?.status ?? 'active')
+  const [version, setVersion] = useState(instance?.version?.replace(/^v/, '') ?? '')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (open) {
       setName(instance?.name ?? '')
+      setDomain(instance?.domain ?? '')
       setStatus(instance?.status ?? 'active')
+      setVersion(instance?.version?.replace(/^v/, '') ?? '')
     }
   }, [open, instance])
 
@@ -34,7 +38,12 @@ export function InstanceFormDialog({ open, onOpenChange, onSave, instance }) {
     if (!name.trim()) return
     setSaving(true)
     try {
-      await onSave({ name: name.trim(), status })
+      await onSave({
+        name: name.trim(),
+        domain: domain.trim() || null,
+        status,
+        version: version.trim() ? `v${version.trim()}` : '',
+      })
       onOpenChange(false)
     } finally {
       setSaving(false)
@@ -65,16 +74,43 @@ export function InstanceFormDialog({ open, onOpenChange, onSave, instance }) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Status</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label>Domain <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Input
+              value={domain}
+              onChange={e => setDomain(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="e.g. admin.mp303.example.com"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Status</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger className="h-9 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="deprecated">Deprecated</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Version</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-mono text-muted-foreground select-none pointer-events-none">
+                  v
+                </span>
+                <Input
+                  value={version}
+                  onChange={(e) => setVersion(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="3.6.2"
+                  className="pl-6 h-9"
+                />
+              </div>
+            </div>
           </div>
         </div>
         <DialogFooter>

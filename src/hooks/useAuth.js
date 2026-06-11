@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthContext } from '@/context/AuthContext'
 
 export function useAuth() {
-  const { user, session, loading } = useAuthContext()
+  const ctx = useAuthContext()
 
   async function signIn(email, password) {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -18,15 +18,10 @@ export function useAuth() {
     if (error) throw error
   }
 
-  async function signOut() {
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
-  }
-
   async function resetPassword(email) {
     const { error } = await supabase.auth.resetPasswordForEmail(email)
     if (error) throw error
   }
 
-  return { user, session, loading, signIn, signUp, signOut, resetPassword }
+  return { ...ctx, signIn, signUp, resetPassword }
 }

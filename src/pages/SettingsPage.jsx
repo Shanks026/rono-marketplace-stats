@@ -1,299 +1,167 @@
-import { useState } from 'react'
-import { Trash2, Plus } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Camera, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
-} from '@/components/ui/dialog'
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
-} from '@/components/ui/alert-dialog'
-import { useGoals } from '@/hooks/useGoals'
-import { usePortals } from '@/hooks/usePortals'
-import { getCurrentQuarter } from '@/lib/quarter'
+import { Textarea } from '@/components/ui/textarea'
+import { useAuth } from '@/hooks/useAuth'
+import { useProfile } from '@/hooks/useProfile'
+
+function getInitials(name) {
+  if (!name) return '?'
+  return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+}
 
 export default function SettingsPage() {
-  const [goalQuarter, setGoalQuarter] = useState(getCurrentQuarter())
-  const { goals, createGoal, updateGoal, deleteGoal } = useGoals(goalQuarter)
-  const { portals, createPortal, updatePortal, deletePortal } = usePortals()
+  const { user } = useAuth()
+  const { profile, isLoading, updateProfile, uploadAvatar, isSaving } = useProfile()
+  const fileInputRef = useRef(null)
+
+  const [form, setForm] = useState({ full_name: '', role: '', bio: '' })
+  const [previewUrl, setPreviewUrl] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const initialized = useRef(false)
+
+  // Only sync form from profile on first load — not on every refetch
+  useEffect(() => {
+    if (profile && !initialized.current) {
+      initialized.current = true
+      setForm({
+        full_name: profile.full_name || '',
+        role:      profile.role      || '',
+        bio:       profile.bio       || '',
+      })
+    }
+  }, [profile])
+
+  function setField(field) {
+    return (e) => setForm(p => ({ ...p, [field]: e.target.value }))
+  }
+
+  async function handleSave() {
+    await updateProfile(form)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  async function handleAvatarChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Show immediately via local blob URL
+    const local = URL.createObjectURL(file)
+    setPreviewUrl(local)
+
+    setUploading(true)
+    try {
+      await uploadAvatar(file)
+      setPreviewUrl(null) // profile refetch will supply the real URL
+    } catch {
+      setPreviewUrl(null)
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+      URL.revokeObjectURL(local)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center py-24">
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  const displayName = form.full_name || user?.email?.split('@')[0] || 'User'
 
   return (
-    <div className="mx-auto max-w-5xl px-8 py-10 space-y-8">
+    <div className="mx-auto max-w-xl px-8 py-10 space-y-8">
+
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1">Manage your goals and portals.</p>
+        <h1 className="text-xl font-semibold tracking-tight">Profile</h1>
+        <p className="text-sm text-muted-foreground mt-1">Manage your personal information.</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-10 items-start">
-        {/* Goals */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Goals</h2>
-            <Input
-              value={goalQuarter}
-              onChange={(e) => setGoalQuarter(e.target.value)}
-              className="h-7 w-24 text-xs"
-              placeholder="2026-Q4"
-            />
-          </div>
-
-          <div className="divide-y rounded-xl border">
-            {goals.map((g) => (
-              <GoalRow key={g.id} goal={g} onUpdate={updateGoal} onDelete={deleteGoal} />
-            ))}
-            {goals.length === 0 && (
-              <p className="px-4 py-6 text-xs text-muted-foreground">No goals for {goalQuarter}.</p>
+      {/* Avatar */}
+      <div className="flex items-center gap-5">
+        <div
+          className="relative group cursor-pointer shrink-0"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <div className="size-20 rounded-full overflow-hidden bg-primary text-primary-foreground flex items-center justify-center text-xl font-semibold select-none">
+            {(previewUrl || profile?.avatar_url) ? (
+              <img src={previewUrl || profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              getInitials(displayName)
             )}
           </div>
-
-          <AddGoalButton quarter={goalQuarter} onCreate={createGoal} />
-        </section>
-
-        {/* Portals */}
-        <section className="space-y-4">
-          <h2 className="text-sm font-semibold">Portals</h2>
-
-          <div className="divide-y rounded-xl border">
-            {portals.map((p) => (
-              <PortalRow key={p.id} portal={p} onUpdate={updatePortal} onDelete={deletePortal} />
-            ))}
-            {portals.length === 0 && (
-              <p className="px-4 py-6 text-xs text-muted-foreground">No portals configured.</p>
-            )}
+          <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            {uploading
+              ? <Loader2 className="size-5 text-white animate-spin" />
+              : <Camera className="size-5 text-white" />
+            }
           </div>
+        </div>
 
-          <AddPortalButton onCreate={createPortal} />
-        </section>
+        <div className="min-w-0">
+          <p className="text-sm font-medium truncate">{displayName}</p>
+          <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+          <button
+            type="button"
+            className="text-xs text-primary hover:underline mt-1"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            Change photo
+          </button>
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleAvatarChange}
+        />
       </div>
+
+      {/* Form */}
+      <div className="space-y-5">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label>Full name</Label>
+            <Input value={form.full_name} onChange={setField('full_name')} placeholder="Your name" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Role <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Input value={form.role} onChange={setField('role')} placeholder="e.g. Developer" />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Email</Label>
+          <Input value={user?.email ?? ''} disabled className="text-muted-foreground" />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Bio <span className="text-muted-foreground font-normal">(optional)</span></Label>
+          <Textarea
+            value={form.bio}
+            onChange={setField('bio')}
+            rows={3}
+            className="resize-none"
+            placeholder="A brief description about yourself…"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end">
+        <Button onClick={handleSave} disabled={isSaving}>
+          {isSaving ? 'Saving…' : saved ? 'Saved!' : 'Save changes'}
+        </Button>
+      </div>
+
     </div>
-  )
-}
-
-function GoalRow({ goal, onUpdate, onDelete }) {
-  const [editing, setEditing] = useState(false)
-  const [confirming, setConfirming] = useState(false)
-  const [title, setTitle] = useState(goal.title)
-  const [description, setDescription] = useState(goal.description || '')
-  const [saving, setSaving] = useState(false)
-
-  async function handleSave() {
-    setSaving(true)
-    await onUpdate(goal.id, { title, description })
-    setSaving(false)
-    setEditing(false)
-  }
-
-  return (
-    <>
-      <div className="flex items-start gap-3 px-4 py-3">
-        <div className="flex-1 min-w-0">
-          <p className="text-sm">{goal.title}</p>
-          {goal.description && (
-            <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{goal.description}</p>
-          )}
-        </div>
-        <div className="flex gap-1 shrink-0">
-          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setEditing(true)}>Edit</Button>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive" onClick={() => setConfirming(true)}>
-            <Trash2 className="size-3.5" />
-          </Button>
-        </div>
-      </div>
-
-      <Dialog open={editing} onOpenChange={(open) => !open && setEditing(false)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-base">Edit goal</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              <Label>Title</Label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Description</Label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-                className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring resize-none"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={confirming} onOpenChange={setConfirming}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete goal?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently delete the goal and unlink all associated tasks.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => onDelete(goal.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
-  )
-}
-
-function PortalRow({ portal, onUpdate, onDelete }) {
-  const [editing, setEditing] = useState(false)
-  const [confirming, setConfirming] = useState(false)
-  const [label, setLabel] = useState(portal.label)
-  const [saving, setSaving] = useState(false)
-
-  async function handleSave() {
-    setSaving(true)
-    await onUpdate(portal.id, { label })
-    setSaving(false)
-    setEditing(false)
-  }
-
-  return (
-    <>
-      <div className="flex items-center gap-3 px-4 py-3">
-        <p className="flex-1 text-sm">{portal.label}</p>
-        <div className="flex gap-1 shrink-0">
-          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setEditing(true)}>Edit</Button>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive" onClick={() => setConfirming(true)}>
-            <Trash2 className="size-3.5" />
-          </Button>
-        </div>
-      </div>
-
-      <Dialog open={editing} onOpenChange={(open) => !open && setEditing(false)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-base">Edit portal</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-1.5 py-2">
-            <Label>Label</Label>
-            <Input value={label} onChange={(e) => setLabel(e.target.value)} />
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={confirming} onOpenChange={setConfirming}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete portal?</AlertDialogTitle>
-            <AlertDialogDescription>Tasks linked to this portal will have their portal unset.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => onDelete(portal.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
-  )
-}
-
-function AddGoalButton({ quarter, onCreate }) {
-  const [open, setOpen] = useState(false)
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  async function handleCreate() {
-    if (!title.trim()) return
-    setSaving(true)
-    await onCreate({ quarter, title, description })
-    setSaving(false)
-    setOpen(false)
-    setTitle('')
-    setDescription('')
-  }
-
-  return (
-    <>
-      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
-        <Plus className="size-3.5" /> Add goal
-      </Button>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-base">Add goal</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              <Label>Quarter</Label>
-              <Input value={quarter} disabled className="text-muted-foreground" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Title</Label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Goal title" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Description</Label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-                placeholder="Optional description"
-                className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring resize-none"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={saving || !title.trim()}>{saving ? 'Creating…' : 'Create'}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  )
-}
-
-function AddPortalButton({ onCreate }) {
-  const [open, setOpen] = useState(false)
-  const [label, setLabel] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  async function handleCreate() {
-    if (!label.trim()) return
-    setSaving(true)
-    await onCreate({ label, color_token: 'gray' })
-    setSaving(false)
-    setOpen(false)
-    setLabel('')
-  }
-
-  return (
-    <>
-      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
-        <Plus className="size-3.5" /> Add portal
-      </Button>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-base">Add portal</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-1.5 py-2">
-            <Label>Label</Label>
-            <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Portal name" />
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={saving || !label.trim()}>{saving ? 'Creating…' : 'Create'}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
   )
 }
