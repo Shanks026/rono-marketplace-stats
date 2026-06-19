@@ -100,21 +100,30 @@ export function InstanceCardTile({ instance, profileMap = {}, onUpdate, onDelete
         {/* Footer */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
-            <Avatar className="size-5 shrink-0">
-              {profileMap[instance.user_id]?.avatar_url && (
-                <AvatarImage src={profileMap[instance.user_id].avatar_url} alt="" className="object-cover" />
-              )}
-              <AvatarFallback className="rounded-full text-[10px] bg-muted text-muted-foreground">
-                {getInitials(instance.updated_by_name || instance.created_by_name || "U")}
-              </AvatarFallback>
-            </Avatar>
-            <p className="text-xs text-muted-foreground truncate">
-              {instance.updated_by_name ? (
-                <><span className="font-medium text-foreground/70">{instance.updated_by_name}</span> updated {timeAgo(instance.updated_at)}</>
-              ) : (
-                <>Created {new Date(instance.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</>
-              )}
-            </p>
+            {(() => {
+              const profileId = instance.updated_by_id || instance.user_id
+              const profile = profileMap[profileId]
+              const displayName = profile?.full_name || (instance.updated_by_id ? instance.updated_by_name : instance.created_by_name) || "U"
+              return (
+                <>
+                  <Avatar className="size-5 shrink-0">
+                    {profile?.avatar_url && (
+                      <AvatarImage src={profile.avatar_url} alt="" className="object-cover" />
+                    )}
+                    <AvatarFallback className="rounded-full text-[10px] bg-muted text-muted-foreground">
+                      {getInitials(displayName)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {instance.updated_by_id || instance.updated_by_name ? (
+                      <><span className="font-medium text-foreground/70">{displayName}</span> updated {timeAgo(instance.updated_at)}</>
+                    ) : (
+                      <>Created {new Date(instance.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</>
+                    )}
+                  </p>
+                </>
+              )
+            })()}
           </div>
 
           <div

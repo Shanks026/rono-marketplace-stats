@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ExternalLink, Copy, Check, Mail, User, Lock, Pencil, Trash2, FileCode, Maximize2 } from "lucide-react";
+import { ExternalLink, Copy, Check, User, Lock, Mail, Pencil, Trash2, FileCode, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
@@ -36,35 +36,15 @@ function buildCopyAll(portal) {
   ].filter(Boolean).join("\n");
 }
 
-function InlineCopy({ value, copyKey, copiedKey, copy }) {
+function CopyBtn({ value, copyKey, copiedKey, copy }) {
   const copied = copiedKey === copyKey;
   return (
     <button
       onClick={() => copy(value, copyKey)}
-      className="flex items-center justify-center h-full px-3 border-l text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+      className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
     >
-      {copied
-        ? <Check className="size-3.5 text-green-600" />
-        : <Copy className="size-3.5" />}
+      {copied ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
     </button>
-  );
-}
-
-function FileRow({ file, fileKey, copiedKey, copy, onView }) {
-  return (
-    <div className="flex items-center h-9 rounded-md border bg-background text-sm overflow-hidden">
-      <div className="flex items-center gap-2 flex-1 min-w-0 px-3">
-        <FileCode className="size-3.5 shrink-0 text-muted-foreground" />
-        <span className="text-muted-foreground font-mono truncate">{file.name}</span>
-      </div>
-      <InlineCopy value={file.content} copyKey={fileKey} copiedKey={copiedKey} copy={copy} />
-      <button
-        onClick={onView}
-        className="flex items-center justify-center h-full px-3 border-l text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-      >
-        <Maximize2 className="size-3.5" />
-      </button>
-    </div>
   );
 }
 
@@ -84,29 +64,82 @@ export function PortalCredentialRow({ portal, onUpdate, onDelete }) {
 
   const title = credentialTitle(portal);
 
-  // Support both new `files` array and legacy `env_content`
   const files = Array.isArray(portal.files) && portal.files.length > 0
     ? portal.files
     : (portal.env_content ? [{ name: '.env', content: portal.env_content }] : []);
 
   return (
     <>
-      <div className="rounded-xl border bg-card p-4 space-y-3">
+      <div className="rounded-xl border bg-card px-5 py-4 space-y-4">
 
-        {/* Header: title + actions */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            {title && (
-              <span className="text-sm font-semibold text-foreground capitalize">{title}</span>
-            )}
+        {/* Title + URL */}
+        <div className="space-y-1.5 min-w-0">
+          <p className="text-base font-semibold tracking-tight leading-none truncate capitalize">
+            {title ?? '—'}
+          </p>
+          <a
+            href={portal.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors truncate"
+          >
+            <span className="truncate">{portal.url}</span>
+            <ExternalLink className="size-3 shrink-0" />
+          </a>
+        </div>
+
+        {/* Dashed separator */}
+        <div className="border-t border-dashed" />
+
+        {/* Credentials */}
+        <div className="space-y-2.5">
+          <div className="flex items-center gap-2">
+            <User className="size-3.5 shrink-0 text-muted-foreground" />
+            <span className="flex-1 min-w-0 text-sm truncate">{portal.username}</span>
+            <CopyBtn value={portal.username} copyKey={keys.username} copiedKey={copiedKey} copy={copy} />
           </div>
-          <div className="flex items-center gap-0.5 shrink-0">
-            <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs px-2.5 text-muted-foreground hover:text-foreground"
-              onClick={() => copy(buildCopyAll(portal), keys.all)}>
-              {copiedKey === keys.all
-                ? <><Check className="size-3 text-green-600" /> Copied!</>
-                : <><Copy className="size-3" /> Copy all</>}
-            </Button>
+          <div className="flex items-center gap-2">
+            <Lock className="size-3.5 shrink-0 text-muted-foreground" />
+            <span className="flex-1 min-w-0 text-sm font-mono tracking-wide truncate">{portal.password}</span>
+            <CopyBtn value={portal.password} copyKey={keys.password} copiedKey={copiedKey} copy={copy} />
+          </div>
+          {portal.email && (
+            <div className="flex items-center gap-2">
+              <Mail className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="flex-1 min-w-0 text-sm truncate">{portal.email}</span>
+              <CopyBtn value={portal.email} copyKey={keys.email} copiedKey={copiedKey} copy={copy} />
+            </div>
+          )}
+          {files.map((file, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <FileCode className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="flex-1 min-w-0 text-sm font-mono text-muted-foreground truncate">{file.name}</span>
+              <CopyBtn value={file.content} copyKey={`${portal.id}-file-${i}`} copiedKey={copiedKey} copy={copy} />
+              <button
+                onClick={() => setViewingFile(file)}
+                className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+              >
+                <Maximize2 className="size-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Dashed separator above footer */}
+        <div className="border-t border-dashed" />
+
+        {/* Footer: copy-all left, edit/delete right */}
+        <div className="flex items-center justify-between -mx-1.5">
+          <Button
+            variant="ghost" size="sm"
+            className="h-7 gap-1.5 text-xs px-2.5 text-muted-foreground hover:text-foreground"
+            onClick={() => copy(buildCopyAll(portal), keys.all)}
+          >
+            {copiedKey === keys.all
+              ? <><Check className="size-3 text-green-600" />Copied!</>
+              : <><Copy className="size-3" />Copy all</>}
+          </Button>
+          <div className="flex items-center gap-0.5">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon" className="size-7 text-muted-foreground hover:text-foreground"
@@ -127,86 +160,20 @@ export function PortalCredentialRow({ portal, onUpdate, onDelete }) {
             </Tooltip>
           </div>
         </div>
-
-        {/* URL field */}
-        <div className="flex items-center h-9 rounded-md border bg-background text-sm overflow-hidden">
-          <span className="flex-1 min-w-0 px-3 truncate text-muted-foreground select-all">
-            {portal.url}
-          </span>
-          <button
-            onClick={() => copy(portal.url, keys.url)}
-            className="flex items-center justify-center h-full px-3 border-l text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            {copiedKey === keys.url
-              ? <Check className="size-3.5 text-green-600" />
-              : <Copy className="size-3.5" />}
-          </button>
-          <a
-            href={portal.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center h-full px-3 border-l text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            <ExternalLink className="size-3.5" />
-          </a>
-        </div>
-
-        {/* Username + Password */}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center h-9 rounded-md border bg-background text-sm overflow-hidden flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-1 min-w-0 px-3">
-              <User className="size-3.5 shrink-0 text-muted-foreground" />
-              <span className="flex-1 truncate">{portal.username}</span>
-            </div>
-            <InlineCopy value={portal.username} copyKey={keys.username} copiedKey={copiedKey} copy={copy} />
-          </div>
-          <div className="flex items-center h-9 rounded-md border bg-background text-sm overflow-hidden flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-1 min-w-0 px-3">
-              <Lock className="size-3.5 shrink-0 text-muted-foreground" />
-              <span className="flex-1 truncate font-mono tracking-wide">{portal.password}</span>
-            </div>
-            <InlineCopy value={portal.password} copyKey={keys.password} copiedKey={copiedKey} copy={copy} />
-          </div>
-        </div>
-
-        {/* Email */}
-        {portal.email && (
-          <div className="flex items-center h-9 rounded-md border bg-background text-sm overflow-hidden">
-            <div className="flex items-center gap-2 flex-1 min-w-0 px-3">
-              <Mail className="size-3.5 shrink-0 text-muted-foreground" />
-              <span className="flex-1 truncate">{portal.email}</span>
-            </div>
-            <InlineCopy value={portal.email} copyKey={keys.email} copiedKey={copiedKey} copy={copy} />
-          </div>
-        )}
-
-        {/* Files */}
-        {files.map((file, i) => (
-          <FileRow
-            key={i}
-            file={file}
-            fileKey={`${portal.id}-file-${i}`}
-            copiedKey={copiedKey}
-            copy={copy}
-            onView={() => setViewingFile(file)}
-          />
-        ))}
       </div>
 
-      {/* File viewer dialog */}
+      {/* File viewer */}
       {viewingFile && (
         <Dialog open={!!viewingFile} onOpenChange={(open) => !open && setViewingFile(null)}>
           <DialogContent className="sm:max-w-4xl w-full flex flex-col h-[80vh]">
             <DialogHeader>
               <div className="flex items-center justify-between pr-8">
-                <DialogTitle className="text-base font-mono">
-                  {viewingFile.name}
-                </DialogTitle>
+                <DialogTitle className="text-base font-mono">{viewingFile.name}</DialogTitle>
                 <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs shrink-0"
                   onClick={() => copy(viewingFile.content, `${portal.id}-viewer`)}>
                   {copiedKey === `${portal.id}-viewer`
-                    ? <><Check className="size-3 text-green-600" /> Copied!</>
-                    : <><Copy className="size-3" /> Copy</>}
+                    ? <><Check className="size-3 text-green-600" />Copied!</>
+                    : <><Copy className="size-3" />Copy</>}
                 </Button>
               </div>
             </DialogHeader>

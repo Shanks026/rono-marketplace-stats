@@ -10,6 +10,7 @@ export function useInstances() {
   const { data: instances = [], isLoading } = useQuery({
     queryKey: ['instances'],
     enabled: !!user,
+    staleTime: 30_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('instances')
@@ -49,7 +50,7 @@ export function useInstances() {
     mutationFn: async ({ id, ...data }) => {
       const { error } = await supabase
         .from('instances')
-        .update({ ...data, updated_at: new Date().toISOString(), updated_by_name: getUserName() })
+        .update({ ...data, updated_at: new Date().toISOString(), updated_by_name: getUserName(), updated_by_id: user.id })
         .eq('id', id)
       if (error) throw error
     },

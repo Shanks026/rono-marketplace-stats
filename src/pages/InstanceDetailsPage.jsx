@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { useAllProfiles } from "@/hooks/useProfile";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,7 +52,6 @@ function timeAgo(dateStr) {
 export default function InstanceDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { state: locationState } = useLocation();
   const { user } = useAuth();
   const qc = useQueryClient();
 
@@ -58,6 +59,7 @@ export default function InstanceDetailsPage() {
   const [confirming, setConfirming] = useState(false);
   const [activeTab, setActiveTab] = useState(PORTAL_NAMES[0]);
   const [addingPortal, setAddingPortal] = useState(false);
+  const profileMap = useAllProfiles();
 
   const { data: instance, isLoading } = useQuery({
     queryKey: ["instance", id],
@@ -139,18 +141,22 @@ export default function InstanceDetailsPage() {
     <div className="flex flex-col h-[calc(100svh-3.5rem)] overflow-hidden">
 
       {/* ── Section 1: Instance header ── */}
-      <div className="shrink-0 px-12 pt-7 pb-5 border-b space-y-4">
+      <div className="shrink-0 px-12 py-6 space-y-3">
         {/* Top bar */}
         <div className="flex items-center justify-between">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1.5 text-muted-foreground -ml-2"
-            onClick={() => navigate(-1)}
-          >
-            <ArrowLeft className="size-3.5" />
-            {locationState?.backLabel ?? "Instances"}
-          </Button>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link to="/instances">Instances</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>{instance.name}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground" onClick={() => setEditing(true)}>
               <Pencil className="size-3.5" />
@@ -164,7 +170,7 @@ export default function InstanceDetailsPage() {
         {/* Instance info */}
         <div className="space-y-2">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-3xl font-bold tracking-tight">{instance.name}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">{instance.name}</h1>
             {instance.version && (
               <Badge variant="secondary" className="text-foreground/70">{instance.version}</Badge>
             )}
@@ -179,15 +185,15 @@ export default function InstanceDetailsPage() {
             }
             <div className="flex items-center gap-4 shrink-0 text-xs text-muted-foreground">
               <span>
-                Created by <span className="text-foreground/70 font-medium">{instance.created_by_name || "Unknown"}</span>
+                Created by <span className="text-foreground/70 font-medium">{profileMap[instance.user_id]?.full_name || instance.created_by_name || "Unknown"}</span>
                 {' · '}
                 {new Date(instance.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                 {' '}
                 {new Date(instance.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
               </span>
-              {instance.updated_by_name && (
+              {(instance.updated_by_id || instance.updated_by_name) && (
                 <span>
-                  Updated by <span className="text-foreground/70 font-medium">{instance.updated_by_name}</span>
+                  Updated by <span className="text-foreground/70 font-medium">{profileMap[instance.updated_by_id]?.full_name || instance.updated_by_name || "Unknown"}</span>
                   {' · '}
                   {timeAgo(instance.updated_at)}
                 </span>
@@ -201,18 +207,37 @@ export default function InstanceDetailsPage() {
       <Tabs
         value={activeTab}
         onValueChange={setActiveTab}
-        orientation="vertical"
-        className="flex-1 min-h-0 flex flex-row gap-0"
+        className="flex-1 min-h-0 flex flex-col gap-0"
       >
-        {/* Left: credential cards — scrolls independently, scrollbar hidden */}
-        <div className="w-[70%] min-w-0 overflow-y-auto no-scrollbar px-12 py-6">
+        {/* Horizontal tab list below header */}
+        <TabsList className="shrink-0 h-auto w-full bg-transparent rounded-none p-0 pb-px pl-12 pr-6 flex items-center justify-start gap-6 border-b overflow-x-auto no-scrollbar">
+          {PORTAL_NAMES.map((name) => {
+            const count = portals.filter(p => p.name === name).length
+            return (
+              <TabsTrigger
+                key={name}
+                value={name}
+                className="h-auto flex-none gap-1.5 rounded-none border-0 border-b-2 border-transparent px-0 py-3 text-sm font-normal text-muted-foreground shadow-none bg-transparent transition-colors hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:font-medium data-[state=active]:shadow-none data-[state=active]:bg-transparent dark:data-[state=active]:border-foreground dark:data-[state=active]:bg-transparent"
+              >
+                {name}
+                {count > 0 && (
+                  <Badge variant="secondary" className="px-1.5 py-0 text-xs font-normal">
+                    {count}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            )
+          })}
+        </TabsList>
+
+        {/* Scrollable content */}
+        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-12 py-6">
           {PORTAL_NAMES.map((name) => {
             const tabPortals = portals.filter(p => p.name === name)
             return (
               <TabsContent key={name} value={name} className="mt-0 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold">{name}</h3>
-                  <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setAddingPortal(true)}>
+                  <Button size="sm" variant="outline" className="gap-1.5 ml-auto" onClick={() => setAddingPortal(true)}>
                     <Plus className="size-3.5" />
                     Add credentials
                   </Button>
@@ -225,7 +250,7 @@ export default function InstanceDetailsPage() {
                     No {name} credentials yet.
                   </p>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="grid grid-cols-2 3xl:grid-cols-3 gap-4">
                     {tabPortals.map((portal) => (
                       <PortalCredentialRow
                         key={portal.id}
@@ -240,27 +265,6 @@ export default function InstanceDetailsPage() {
             )
           })}
         </div>
-
-        {/* Right: tab list — static, never scrolls */}
-        <TabsList className="w-[30%] shrink-0 flex-col h-auto bg-transparent p-0 py-6 pr-12 pl-8 items-stretch justify-start rounded-none border-l">
-          {PORTAL_NAMES.map((name) => {
-            const count = portals.filter(p => p.name === name).length
-            return (
-              <TabsTrigger
-                key={name}
-                value={name}
-                className="h-auto flex-none justify-start rounded-none border-0 px-0 py-2 text-sm font-normal text-muted-foreground shadow-none bg-transparent data-[state=active]:text-foreground data-[state=active]:font-medium data-[state=active]:shadow-none data-[state=active]:bg-transparent"
-              >
-                <span className="flex-1 text-left truncate">{name}</span>
-                {count > 0 && (
-                  <Badge variant="secondary" className="px-1.5 py-0 text-xs font-normal shrink-0 ml-1.5">
-                    {count}
-                  </Badge>
-                )}
-              </TabsTrigger>
-            )
-          })}
-        </TabsList>
       </Tabs>
 
       {/* Dialogs */}

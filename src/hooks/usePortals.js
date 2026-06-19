@@ -14,6 +14,7 @@ export function usePortals() {
   const { data: portals = [], isLoading } = useQuery({
     queryKey: ['portals'],
     enabled: !!user,
+    staleTime: 30_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('portals')

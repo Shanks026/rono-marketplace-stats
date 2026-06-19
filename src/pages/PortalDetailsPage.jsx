@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Pencil, Trash2, Plus } from 'lucide-react'
+import { useAllProfiles } from '@/hooks/useProfile'
+import { Pencil, Trash2, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -35,6 +37,7 @@ export default function PortalDetailsPage() {
   const [confirming, setConfirming] = useState(false)
   const [addingCred, setAddingCred] = useState(false)
   const [selectedInstanceId, setSelectedInstanceId] = useState(null)
+  const profileMap = useAllProfiles()
 
   // Portal metadata
   const { data: portal, isLoading } = useQuery({
@@ -84,13 +87,6 @@ export default function PortalDetailsPage() {
       return data
     },
   })
-
-  // Auto-select first instance when instances load
-  useEffect(() => {
-    if (allInstances.length > 0 && !selectedInstanceId) {
-      setSelectedInstanceId(allInstances[0].id)
-    }
-  }, [allInstances, selectedInstanceId])
 
   function getUserName() {
     return user?.user_metadata?.full_name ?? user?.email?.split('@')[0] ?? 'Unknown'
@@ -181,14 +177,22 @@ export default function PortalDetailsPage() {
     <div className="flex flex-col h-[calc(100svh-3.5rem)] overflow-hidden">
 
       {/* ── Section 1: Portal header ── */}
-      <div className="shrink-0 px-12 pt-7 pb-5 border-b space-y-4">
+      <div className="shrink-0 px-12 py-6 space-y-3">
         {/* Top bar */}
         <div className="flex items-center justify-between">
-          <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground -ml-2"
-            onClick={() => navigate('/portals')}>
-            <ArrowLeft className="size-3.5" />
-            Portals
-          </Button>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link to="/portals">Portals</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>{portal.label}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground"
               onClick={() => setEditing(true)}>
@@ -204,7 +208,7 @@ export default function PortalDetailsPage() {
         {/* Portal info */}
         <div className="space-y-1.5">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-3xl font-bold tracking-tight">{portal.label}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">{portal.label}</h1>
             <Badge className={cn('capitalize', statusClass(portal.status))}>
               {portal.status}
             </Badge>
@@ -213,7 +217,10 @@ export default function PortalDetailsPage() {
             <p className="text-sm text-muted-foreground">{portal.description}</p>
           )}
           <p className="text-xs text-muted-foreground">
-            Created {new Date(portal.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}{' · '}
+            Created by <span className="text-foreground/70 font-medium">{profileMap[portal.user_id]?.full_name || portal.created_by_name || 'Unknown'}</span>
+            {' · '}
+            {new Date(portal.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+            {' '}
             {new Date(portal.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
           </p>
         </div>
@@ -230,23 +237,37 @@ export default function PortalDetailsPage() {
         <Tabs
           value={selectedInstanceId ?? allInstances[0]?.id}
           onValueChange={setSelectedInstanceId}
-          orientation="vertical"
-          className="flex-1 min-h-0 flex flex-row gap-0"
+          className="flex-1 min-h-0 flex flex-col gap-0"
         >
-          {/* Left: credential cards — scrolls independently */}
-          <div className="w-[70%] min-w-0 overflow-y-auto no-scrollbar px-12 py-6">
+          {/* Horizontal tab list below header */}
+          <TabsList className="shrink-0 h-auto w-full bg-transparent rounded-none p-0 pb-px pl-12 pr-6 flex items-center justify-start gap-6 border-b overflow-x-auto no-scrollbar">
+            {allInstances.map(instance => {
+              const count = allCredentials.filter(c => c.instance_id === instance.id).length
+              return (
+                <TabsTrigger
+                  key={instance.id}
+                  value={instance.id}
+                  className="h-auto flex-none gap-1.5 rounded-none border-0 border-b-2 border-transparent px-0 py-3 text-sm font-normal text-muted-foreground shadow-none bg-transparent transition-colors hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:font-medium data-[state=active]:shadow-none data-[state=active]:bg-transparent dark:data-[state=active]:border-foreground dark:data-[state=active]:bg-transparent"
+                >
+                  {instance.name}
+                  {count > 0 && (
+                    <Badge variant="secondary" className="px-1.5 py-0 text-xs font-normal">
+                      {count}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              )
+            })}
+          </TabsList>
+
+          {/* Scrollable content */}
+          <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-12 py-6">
             {allInstances.map(instance => {
               const instanceCreds = allCredentials.filter(c => c.instance_id === instance.id)
               return (
                 <TabsContent key={instance.id} value={instance.id} className="mt-0 space-y-4">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold">{instance.name}</h3>
-                      {instance.version && (
-                        <span className="text-xs text-muted-foreground">{instance.version}</span>
-                      )}
-                    </div>
-                    <Button size="sm" variant="outline" className="gap-1.5"
+                    <Button size="sm" variant="outline" className="gap-1.5 ml-auto"
                       onClick={() => { setSelectedInstanceId(instance.id); setAddingCred(true) }}>
                       <Plus className="size-3.5" />
                       Add credentials
@@ -260,7 +281,7 @@ export default function PortalDetailsPage() {
                       No {portal.label} credentials yet.
                     </p>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="grid grid-cols-2 3xl:grid-cols-3 gap-4">
                       {instanceCreds.map(cred => (
                         <PortalCredentialRow
                           key={cred.id}
@@ -275,27 +296,6 @@ export default function PortalDetailsPage() {
               )
             })}
           </div>
-
-          {/* Right: vertical instance list — static */}
-          <TabsList className="w-[30%] shrink-0 flex-col h-auto bg-transparent p-0 py-6 pr-12 pl-8 items-stretch justify-start rounded-none border-l">
-            {allInstances.map(instance => {
-              const count = allCredentials.filter(c => c.instance_id === instance.id).length
-              return (
-                <TabsTrigger
-                  key={instance.id}
-                  value={instance.id}
-                  className="h-auto flex-none justify-start rounded-none border-0 px-0 py-1.5 text-sm font-normal text-muted-foreground shadow-none bg-transparent data-[state=active]:text-foreground data-[state=active]:font-medium data-[state=active]:shadow-none data-[state=active]:bg-transparent"
-                >
-                  <span className="flex-1 text-left truncate">{instance.name}</span>
-                  {count > 0 && (
-                    <Badge variant="secondary" className="px-1.5 py-0 text-xs font-normal shrink-0 ml-1.5">
-                      {count}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-              )
-            })}
-          </TabsList>
         </Tabs>
       )}
 
