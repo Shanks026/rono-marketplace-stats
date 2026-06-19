@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import VaultIcon from '@/assets/VaultIcon.svg'
 import { NavLink, useLocation } from 'react-router-dom'
 import { Server, ChevronsUpDown, LogOut, UserPlus, Check, X, Layers, Settings } from 'lucide-react'
 import { useAuthContext } from '@/context/AuthContext'
@@ -58,12 +59,10 @@ export function AppSidebar() {
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild>
                 <div className="cursor-default">
-                  <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold shrink-0">
-                    TH
-                  </div>
+                  <img src={VaultIcon} alt="Vault" className="size-8 rounded-lg shrink-0" />
                   <div className="flex flex-col leading-tight">
-                    <span className="text-sm font-semibold">THMP</span>
-                    <span className="text-xs text-muted-foreground">Team Hub</span>
+                    <span className="text-sm font-semibold">Vault</span>
+                    <span className="text-xs text-muted-foreground">{profile?.role || '-'}</span>
                   </div>
                 </div>
               </SidebarMenuButton>
